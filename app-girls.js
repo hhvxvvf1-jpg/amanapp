@@ -120,6 +120,44 @@
           </div>
 
           <div class="card" style="margin-bottom:16px">
+            <h2>💜 ${k === 'fr' ? 'Soutien psychologique & Bien-être' : k === 'en' ? 'Psychological Support & Wellbeing' : 'الدعم النفسي والمرافقة'}</h2>
+            <p>${k === 'fr'
+              ? 'Tu n’es pas seule. Si tu ressens de la peur, du stress ou de la tristesse, tu peux demander une écoute confidentielle avec une spécialiste qualifiée.'
+              : k === 'en'
+                ? 'You are not alone. If you feel scared, stressed, or sad, you can request confidential support from a trained specialist.'
+                : 'لستِ وحدكِ أبداً. إذا كنتِ تشعرين بالخوف أو التوتر أو الحزن بسبب ما تمرين به، يمكنكِ طلب جلسة استماع ودعم نفسي سرية مع مختصة مؤهلة.'}</p>
+          </div>
+
+          <div class="card" style="margin-bottom:16px">
+            <h2>📢 ${k === 'fr' ? 'Signaler une situation (Écrit ou Audio)' : k === 'en' ? 'Report a Situation (Written or Audio)' : 'أريد التبليغ أو طلب المساعدة (كتابي أو صوتي)'}</h2>
+            <form onsubmit="return amanSubmitReport(event, 'girls')">
+              <label>${k === 'fr' ? 'Type de situation' : k === 'en' ? 'Situation Type' : 'نوع الحالة'}</label>
+              <select name="category" required style="width:100%;padding:10px;margin-bottom:10px">
+                <option value="Bullying">${k === 'fr' ? 'Harcèlement scolaire / Cyberharcèlement' : k === 'en' ? 'School Bullying / Cyberbullying' : 'تنمر مدرسي أو إلكتروني'}</option>
+                <option value="Online Blackmail">${k === 'fr' ? 'Chantage en ligne' : k === 'en' ? 'Online Blackmail' : 'ابتزاز أو تهديد إلكتروني'}</option>
+                <option value="Family Violence">${k === 'fr' ? 'Violence familiale' : k === 'en' ? 'Family Violence' : 'عنف داخل الأسرة'}</option>
+                <option value="Psychological Support">${k === 'fr' ? 'Besoin de soutien psychologique' : k === 'en' ? 'Psychological Support' : 'طلب دعم نفسي وتوجيه'}</option>
+              </select>
+              <label>${k === 'fr' ? 'Urgence' : k === 'en' ? 'Urgency' : 'درجة الاستعجال'}</label>
+              <select name="urgency" style="width:100%;padding:10px;margin-bottom:10px">
+                <option value="normal">${k === 'fr' ? 'Normal' : k === 'en' ? 'Normal' : 'عادي'}</option>
+                <option value="high">${k === 'fr' ? 'Élevé' : k === 'en' ? 'High' : 'مستعجل'}</option>
+                <option value="urgent">${k === 'fr' ? 'Danger immédiat' : k === 'en' ? 'Immediate Danger' : 'خطر فوري'}</option>
+              </select>
+              <textarea name="description" rows="3" placeholder="${k === 'fr' ? 'Explique ce qui s’est passé (facultatif)...' : k === 'en' ? 'Describe what happened (optional)...' : 'احكي لنا ما حدث باختصار (اختياري، ولا يلزمكِ كتابة اسمكِ الكامل)...'}" style="width:100%;padding:10px;margin-bottom:10px"></textarea>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+                <button type="button" class="btn o" onclick="amanStartAudio()">🎙️ ${k === 'fr' ? 'Enregistrer audio' : k === 'en' ? 'Record Audio' : 'تسجيل صوتي'}</button>
+                <button type="button" class="btn o" onclick="amanStopAudio()">⏹️ ${k === 'fr' ? 'Arrêter' : k === 'en' ? 'Stop' : 'إيقاف'}</button>
+                <button type="button" class="btn o" onclick="amanClearAudio()">🗑️ ${k === 'fr' ? 'Effacer' : k === 'en' ? 'Clear' : 'مسح'}</button>
+                <span id="aman-rec-time">0s</span>
+              </div>
+              <audio id="aman-audio-preview" controls style="display:none;width:100%;margin-bottom:10px"></audio>
+              <button type="submit" class="btn d" style="width:100%;padding:12px">${k === 'fr' ? 'Envoyer en toute confidentialité' : k === 'en' ? 'Submit Confidentially' : 'إرسال الطلب بسرية تامة'}</button>
+              <div id="aman-report-status"></div>
+            </form>
+          </div>
+
+          <div class="card" style="margin-bottom:16px">
             <h2>📚 ${k === 'fr' ? 'Bibliothèque éducative' : k === 'en' ? 'Educational Library' : 'اعرفي حقوقك ومعلومات ونصائح'}</h2>
             <div id="girls-library-out"></div>
           </div>
@@ -143,5 +181,8 @@
         </section>
       `;
     };
+    if (location.hash === '#girls' && typeof window.draw === 'function') {
+      window.draw();
+    }
   }
 })();

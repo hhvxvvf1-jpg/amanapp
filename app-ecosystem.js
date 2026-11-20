@@ -415,4 +415,36 @@
       </section>
     `;
   }
+  window.amanSelectAge = function (group) {
+    localStorage.setItem('aman_age_group', group);
+    const gate = document.getElementById('aman-onboarding-gate');
+    if (gate) gate.remove();
+    location.hash = group;
+    if (typeof window.draw === 'function') window.draw();
+  };
+
+  // Show age selection before content if not yet chosen
+  const savedAge = localStorage.getItem('aman_age_group');
+  if (!savedAge) {
+    const overlay = document.createElement('div');
+    overlay.id = 'aman-onboarding-gate';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(26,13,36,0.92);display:flex;align-items:center;justify-content:center;padding:16px;';
+    overlay.innerHTML = `
+      <div class="card" style="max-width:460px;width:100%;text-align:center;padding:24px;border-radius:18px;background:var(--card,#fff)">
+        <img src="logo.png" alt="AMAN" style="width:64px;height:64px;object-fit:contain;margin:0 auto 12px;display:block">
+        <h2 style="margin:0 0 8px;color:var(--ac,#4B176F)">مرحباً بكِ في أمان</h2>
+        <p style="margin:0 0 18px;font-size:.95rem">اختر الفئة العمرية المناسبة لعرض الفضاء والخدمات المخصصة لك:</p>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <button type="button" class="btn d" style="padding:12px" onclick="amanSelectAge('child')">أقل من 12 سنة — فضاء الأطفال</button>
+          <button type="button" class="btn d" style="padding:12px" onclick="amanSelectAge('girls')">12 – 17 سنة — فضاء الفتيات</button>
+          <button type="button" class="btn d" style="padding:12px" onclick="amanSelectAge('women')">18+ سنة — فضاء النساء</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+  } else if (!location.hash || location.hash === '#home') {
+    location.hash = savedAge;
+  } else if (typeof window.draw === 'function') {
+    window.draw();
+  }
 })();
