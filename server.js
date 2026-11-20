@@ -14,7 +14,41 @@ const { db, initDatabase } = require('./src/db/database');
 const communityService = require('./src/services/community.service');
 const aiService = require('./src/services/ai.service');
 const authService = require('./src/services/auth.service');
+const casesService = require('./src/services/cases.service');
+const partnersService = require('./src/services/partners.service');
+const analyticsService = require('./src/services/analytics.service');
+const cmsService = require('./src/services/cms.service');
+const girlsService = require('./src/services/girls.service');
 const security = require('./src/middleware/security');
+
+function readJsonBody(req, maxBytes = 15 * 1024 * 1024) {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    let size = 0;
+    req.on('data', (chunk) => {
+      size += chunk.length;
+      if (size > maxBytes) {
+        reject(new Error('Payload too large'));
+        req.destroy();
+        return;
+      }
+      body += chunk;
+    });
+    req.on('end', () => {
+      try {
+        resolve(JSON.parse(body || '{}'));
+      } catch {
+        reject(new Error('Invalid JSON'));
+      }
+    });
+    req.on('error', reject);
+  });
+}
+
+function sendJson(res, status, data) {
+  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
+  res.end(JSON.stringify(data));
+}
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = __dirname;
@@ -246,6 +280,220 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // --- API: AUTHENTICATION ---
+  if (pathname === '/api/auth/login' && method === 'POST') {
+    if (!security.checkRateLimit(clientIp, 15, 60000)) {
+      return sendJson(res, 429, { error: 'rate_limited' });
+    }
+    try {
+      const payload = await readJsonBody(req);
+      const result = authService.login({ email: payload.email, password: payload.password, ipAddress: clientIp });
+      return sendJson(res, 200, { success: true, ...result });
+    } catch (err) {
+      return sendJson(res, 401, { error: err.message });
+    }
+  }
+
+  if (pathname === '/api/auth/me' && method === 'GET') {
+    const user = authService.getSessionUser(req);
+    if (!user) return sendJson(res, 401, { error: 'unauthorized' });
+    return sendJson(res, 200, { user });
+  }
+
+  if (pathname === '/api/auth/logout' && method === 'POST') {
+    const authHeader = req.headers['authorization'] || '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
+    authService.logout(token);
+    return sendJson(res, 200, { success: true });
+  }
+
+  // --- API: HELP REQUESTS & AUDIO REPORTING ---
+  if (pathname === '/api/reports' && method === 'POST') {
+    if (!security.checkRateLimit(clientIp, 20, 60000)) {
+      return sendJson(res, 429, { error: 'rate_limited' });
+    }
+    try {
+      const payload = await readJsonBody(req);
+      const result = casesService.submitHelpRequest(payload);
+      return sendJson(res, 201, { success: true, report: result });
+    } catch (err) {
+      return sendJson(res, 400, { error: err.message });
+    }
+  }
+
+  if (pathname === '/api/reports/audio' && method === 'POST') {
+    if (!security.checkRateLimit(clientIp, 10, 60000)) {
+      return sendJson(res, 429, { error: 'rate_limited' });
+    }
+    try {
+      const payload = await readJsonBody(req);
+      const result = casesService.saveAudioReport(payload);
+      return sendJson(res, 201, { success: true, audio: result });
+    } catch (err) {
+      return sendJson(res, 400, { error: err.message });
+    }
+  }
+
+  if (pathname.startsWith('/api/followup/') && method === 'GET') {
+    const refCode = decodeURIComponent(pathname.slice('/api/followup/'.length));
+    const status = casesService.getPublicFollowUp(refCode);
+    if (!status) return sendJson(res, 404, { error: 'not_found' });
+    return sendJson(res, 200, { success: true, followup: status });
+  }
+
+  // --- API: PROFESSIONAL CASE MANAGEMENT (RBAC) ---
+  if (pathname === '/api/cases' && method === 'GET') {
+    const user = authService.getSessionUser(req);
+    if (!user) return sendJson(res, 401, { error: 'unauthorized' });
+    try {
+      const cases = casesService.listCasesForUser(user, {
+        status: parsedUrl.query.status || '',
+        group: parsedUrl.query.group || ''
+      });
+      return sendJson(res, 200, { success: true, cases });
+    } catch (err) {
+      return sendJson(res, 403, { error: err.message });
+    }
+  }
+
+  if (pathname.startsWith('/api/cases/') && pathname.endsWith('/status') && method === 'PATCH') {
+    const user = authService.getSessionUser(req);
+    if (!user) return sendJson(res, 401, { error: 'unauthorized' });
+    const caseId = pathname.split('/')[3];
+    try {
+      const payload = await readJsonBody(req);
+      const updated = casesService.updateCaseStatus(user, caseId, payload);
+      return sendJson(res, 200, { success: true, case: updated });
+    } catch (err) {
+      return sendJson(res, err.message === 'Forbidden' ? 403 : 400, { error: err.message });
+    }
+  }
+
+  if (pathname.startsWith('/api/cases/') && pathname.endsWith('/notes') && method === 'POST') {
+    const user = authService.getSessionUser(req);
+    if (!user) return sendJson(res, 401, { error: 'unauthorized' });
+    const caseId = pathname.split('/')[3];
+    try {
+      const payload = await readJsonBody(req);
+      const note = casesService.addCaseNote(user, caseId, payload);
+      return sendJson(res, 201, { success: true, note });
+    } catch (err) {
+      return sendJson(res, err.message === 'Forbidden' ? 403 : 400, { error: err.message });
+    }
+  }
+
+  if (pathname.startsWith('/api/audio/') && method === 'GET') {
+    const user = authService.getSessionUser(req);
+    if (!user) return sendJson(res, 401, { error: 'unauthorized' });
+    const audioId = pathname.slice('/api/audio/'.length);
+    try {
+      const { filePath, mimeType } = casesService.getAudioFileForUser(user, audioId);
+      res.writeHead(200, { 'Content-Type': mimeType, 'Cache-Control': 'no-store' });
+      fs.createReadStream(filePath).pipe(res);
+      return;
+    } catch (err) {
+      return sendJson(res, err.message === 'Forbidden' ? 403 : 404, { error: err.message });
+    }
+  }
+
+  // --- API: DIRECTORY & PARTNERS ---
+  if (pathname === '/api/directory' && method === 'GET') {
+    const orgs = partnersService.listDirectory({
+      region: parsedUrl.query.region || '',
+      category: parsedUrl.query.category || '',
+      city: parsedUrl.query.city || '',
+      verifiedOnly: parsedUrl.query.all !== '1'
+    });
+    return sendJson(res, 200, { success: true, organizations: orgs });
+  }
+
+  if (pathname === '/api/partners/register' && method === 'POST') {
+    if (!security.checkRateLimit(clientIp, 10, 60000)) {
+      return sendJson(res, 429, { error: 'rate_limited' });
+    }
+    try {
+      const payload = await readJsonBody(req);
+      const org = partnersService.registerPartner(payload);
+      return sendJson(res, 201, { success: true, organization: org });
+    } catch (err) {
+      return sendJson(res, 400, { error: err.message });
+    }
+  }
+
+  if (pathname === '/api/referrals' && method === 'POST') {
+    const user = authService.getSessionUser(req);
+    if (!user) return sendJson(res, 401, { error: 'unauthorized' });
+    try {
+      const payload = await readJsonBody(req);
+      const ref = partnersService.createReferral(user, payload);
+      return sendJson(res, 201, { success: true, referral: ref });
+    } catch (err) {
+      return sendJson(res, err.message === 'Forbidden' ? 403 : 400, { error: err.message });
+    }
+  }
+
+  if (pathname === '/api/analytics' && method === 'GET') {
+    const user = authService.getSessionUser(req);
+    if (!user) return sendJson(res, 401, { error: 'unauthorized' });
+    try {
+      const stats = analyticsService.getAggregatedStats(user);
+      return sendJson(res, 200, { success: true, stats });
+    } catch (err) {
+      return sendJson(res, 403, { error: err.message });
+    }
+  }
+
+  // --- API: CMS & LEGAL RESOURCES ---
+  if (pathname === '/api/cms' && method === 'GET') {
+    const items = cmsService.listContent({
+      type: parsedUrl.query.type || '',
+      publishedOnly: parsedUrl.query.all !== '1'
+    });
+    return sendJson(res, 200, { success: true, items });
+  }
+
+  if (pathname === '/api/cms' && method === 'POST') {
+    const user = authService.getSessionUser(req);
+    if (!user) return sendJson(res, 401, { error: 'unauthorized' });
+    try {
+      const payload = await readJsonBody(req);
+      const item = cmsService.upsertContent(user, payload);
+      return sendJson(res, 200, { success: true, item });
+    } catch (err) {
+      return sendJson(res, err.message === 'Forbidden' ? 403 : 400, { error: err.message });
+    }
+  }
+
+  // --- API: AMAN GIRLS ---
+  if (pathname === '/api/girls/library' && method === 'GET') {
+    const items = girlsService.getLibrary({
+      ageGroup: parsedUrl.query.ageGroup || '',
+      category: parsedUrl.query.category || ''
+    });
+    return sendJson(res, 200, { success: true, items });
+  }
+
+  if (pathname === '/api/girls/quizzes' && method === 'GET') {
+    return sendJson(res, 200, { success: true, quizzes: girlsService.getQuizzes() });
+  }
+
+  if (pathname === '/api/girls/specialist-request' && method === 'POST') {
+    if (!security.checkRateLimit(clientIp, 15, 60000)) {
+      return sendJson(res, 429, { error: 'rate_limited' });
+    }
+    try {
+      const payload = await readJsonBody(req);
+      const report = girlsService.requestSpecialistChat(payload);
+      return sendJson(res, 201, {
+        success: true,
+        report,
+        availability: 'Mon-Fri 08:30-16:30 (Pilot) · Emergency: 19 / 177 / 8350'
+      });
+    } catch (err) {
+      return sendJson(res, 400, { error: err.message });
+    }
+  }
+
   // --- API: HEALTH CHECK ---
   if (pathname === '/api/health') {
     const postCount = db.prepare('SELECT COUNT(*) as count FROM posts').get().count;
@@ -297,7 +545,7 @@ const server = http.createServer(async (req, res) => {
   });
 });
 
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`===============================================`);
   console.log(`AMAN Platform Server (Native SQLite Layer)`);
   console.log(`URL: http://localhost:${PORT}`);
