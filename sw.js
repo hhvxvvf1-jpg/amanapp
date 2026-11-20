@@ -1,6 +1,6 @@
 // AMAN service worker: makes the site installable, speeds up repeat visits and keeps the app shell usable offline.
-const CACHE = "aman-v26";
-const SHELL = ["/", "/manifest.webmanifest", "/icon-192.png", "/icon-512.png", "/logo.png", "/mark.png", "/apple-touch-icon.png", "/app.css", "/content.js", "/app-core.js", "/app-ai.js", "/app-speech.js", "/app-extra.js", "/app-voice.js", "/search.js", "/search.css", "/community.js", "/community.css", "/protect.js", "/protect.css", "/select.js", "/select.css"];
+const CACHE = "aman-v41";
+const SHELL = ["/", "/manifest.webmanifest", "/icon-192.png", "/icon-512.png", "/logo.png", "/mark.png", "/apple-touch-icon.png", "/app.css", "/content.js", "/app-core.js", "/app-ai.js", "/app-speech.js", "/app-extra.js", "/app-voice.js", "/app-ecosystem.js", "/app-girls.js", "/search.js", "/search.css", "/community.js", "/community.css", "/protect.js", "/protect.css", "/select.js", "/select.css"];
 const NETWORK_TIMEOUT = 4000;
 
 self.addEventListener("install", e => {

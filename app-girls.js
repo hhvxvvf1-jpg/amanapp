@@ -8,11 +8,27 @@
     return ['ar', 'fr', 'en'][l] || 'ar';
   }
 
-  let selectedAge = '13-15';
+  let selectedAge = localStorage.getItem('aman_girls_band') || '';
+
+  window.amanGirlsSelectBand = function (age) {
+    selectedAge = age;
+    document.querySelectorAll('.girls-age-card').forEach((el) => {
+      el.style.borderColor = el.dataset.age === age ? 'var(--ac,#4B176F)' : 'var(--bd,#e0d4eb)';
+      el.style.background = el.dataset.age === age ? 'rgba(75,23,111,0.06)' : 'var(--card,#fff)';
+    });
+  };
+
+  window.amanGirlsConfirmBand = function () {
+    if (!selectedAge) selectedAge = '13-15';
+    localStorage.setItem('aman_girls_band', selectedAge);
+    if (typeof window.draw === 'function') window.draw();
+  };
 
   window.amanGirlsSetAge = function (age) {
     selectedAge = age;
+    localStorage.setItem('aman_girls_band', age);
     window.amanGirlsLoadLibrary();
+    window.amanGirlsLoadQuizzes();
   };
 
   window.amanGirlsLoadLibrary = async function (category = '') {
@@ -38,7 +54,7 @@
     const out = document.getElementById('girls-quiz-out');
     if (!out) return;
     try {
-      const res = await fetch('/api/girls/quizzes');
+      const res = await fetch('/api/girls/quizzes?ageGroup=' + encodeURIComponent(selectedAge || '13-15'));
       const data = await res.json();
       const k = langKey();
       out.innerHTML = data.quizzes.map((q) => `
@@ -86,12 +102,39 @@
 
   if (window.P) {
     window.P.girls = function () {
+      const k = langKey();
+      const activeBand = localStorage.getItem('aman_girls_band');
+      if (!activeBand) {
+        return `
+          <section class="wrap" style="max-width:860px;margin:24px auto;padding:0 16px">
+            <div class="card" style="text-align:center;padding:24px">
+              <h1 style="margin-top:0;color:var(--ac,#4B176F)">مرحباً بك في فضاء الفتيات AMAN GIRLS</h1>
+              <p>اختاري فئتك العمرية حتى نعرض لك المحتوى والأنشطة والمعلومات المناسبة لك.</p>
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:18px 0;text-align:start">
+                <div class="card girls-age-card" data-age="10-12" onclick="amanGirlsSelectBand('10-12')" style="cursor:pointer;border:2px solid var(--bd,#e0d4eb)">
+                  <strong>من 10 إلى 12 سنة</strong>
+                  <p style="font-size:.9rem;margin:8px 0 0">فضاء مبسط للتعلم والتوعية واكتشاف الحقوق والسلامة الشخصية.</p>
+                </div>
+                <div class="card girls-age-card" data-age="13-15" onclick="amanGirlsSelectBand('13-15')" style="cursor:pointer;border:2px solid var(--bd,#e0d4eb)">
+                  <strong>من 13 إلى 15 سنة</strong>
+                  <p style="font-size:.9rem;margin:8px 0 0">معلومات وأنشطة حول الحقوق، الثقة بالنفس، العلاقات الصحية، الحماية والسلامة الرقمية.</p>
+                </div>
+                <div class="card girls-age-card" data-age="16-17" onclick="amanGirlsSelectBand('16-17')" style="cursor:pointer;border:2px solid var(--bd,#e0d4eb)">
+                  <strong>من 16 إلى 17 سنة</strong>
+                  <p style="font-size:.9rem;margin:8px 0 0">محتوى أكثر تفصيلاً حول الحقوق، الاستقلالية، التوجيه، الصحة، الحماية والتمكين.</p>
+                </div>
+              </div>
+              <button type="button" class="btn d" style="padding:12px 28px" onclick="amanGirlsConfirmBand()">متابعة</button>
+              <p style="margin-top:14px;font-weight:700;color:#b91c1c">19 (Police) · 177 (Gendarmerie) · 15 (SAMU) · 8350 (UNFM)</p>
+            </div>
+          </section>
+        `;
+      }
+      selectedAge = activeBand;
       setTimeout(() => {
         window.amanGirlsLoadLibrary();
         window.amanGirlsLoadQuizzes();
       }, 50);
-
-      const k = langKey();
       const title = k === 'fr' ? 'Bienvenue dans AMAN Filles' : k === 'en' ? 'Welcome to AMAN Girls' : 'مرحباً بك في فضاء الفتيات';
       const safetyTitle = k === 'fr' ? 'Centre de sécurité personnelle' : k === 'en' ? 'Personal Safety Center' : 'مركز الأمان الشخصي';
       const safetyBody = k === 'fr'
@@ -109,8 +152,8 @@
               <button type="button" class="btn o" onclick="amanGirlsSetAge('10-12')">10–12</button>
               <button type="button" class="btn o" onclick="amanGirlsSetAge('13-15')">13–15</button>
               <button type="button" class="btn o" onclick="amanGirlsSetAge('16-17')">16–17</button>
-              <a class="btn d" href="#followup">🔍 ${k === 'fr' ? 'Suivi' : k === 'en' ? 'Follow-Up' : 'متابعة الطلب'}</a>
-              <a class="btn o" href="#partners">📍 ${k === 'fr' ? 'Services' : k === 'en' ? 'Services' : 'خدمات الدعم القريبة'}</a>
+              <a class="btn d" href="#followup">${k === 'fr' ? 'Suivi' : k === 'en' ? 'Follow-Up' : 'متابعة الطلب'}</a>
+              <a class="btn o" href="#map">${k === 'fr' ? 'Carte des services' : k === 'en' ? 'Services Map' : 'خريطة خدمات الدعم'}</a>
             </div>
           </div>
 
@@ -158,7 +201,15 @@
           </div>
 
           <div class="card" style="margin-bottom:16px">
-            <h2>📚 ${k === 'fr' ? 'Bibliothèque éducative' : k === 'en' ? 'Educational Library' : 'اعرفي حقوقك ومعلومات ونصائح'}</h2>
+            <h2>${k === 'fr' ? 'Bibliothèque éducative' : k === 'en' ? 'Educational Library' : 'اعرفي حقوقك ومعلومات ونصائح'}</h2>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+              <button type="button" class="btn o" onclick="amanGirlsLoadLibrary('')">${k === 'fr' ? 'Tout' : k === 'en' ? 'All' : 'الكل'}</button>
+              <button type="button" class="btn o" onclick="amanGirlsLoadLibrary('rights')">${k === 'fr' ? 'Droits' : k === 'en' ? 'Rights' : 'الحقوق والحماية'}</button>
+              <button type="button" class="btn o" onclick="amanGirlsLoadLibrary('understanding_violence')">${k === 'fr' ? 'Violences' : k === 'en' ? 'Violence' : 'فهم العنف'}</button>
+              <button type="button" class="btn o" onclick="amanGirlsLoadLibrary('digital_safety')">${k === 'fr' ? 'Sécurité numérique' : k === 'en' ? 'Digital Safety' : 'السلامة الرقمية'}</button>
+              <button type="button" class="btn o" onclick="amanGirlsLoadLibrary('wellbeing')">${k === 'fr' ? 'Bien-être' : k === 'en' ? 'Wellbeing' : 'الصحة والرفاه'}</button>
+              <button type="button" class="btn o" onclick="amanGirlsLoadLibrary('empowerment')">${k === 'fr' ? 'Éducation' : k === 'en' ? 'Empowerment' : 'التعليم والتمكين'}</button>
+            </div>
             <div id="girls-library-out"></div>
           </div>
 

@@ -301,6 +301,33 @@
     }
   };
 
+  window.amanLoadMap = async function () {
+    const city = (document.getElementById('map-city') || {}).value || '';
+    const cat = (document.getElementById('map-cat') || {}).value || '';
+    const out = document.getElementById('aman-map-list');
+    if (!out) return;
+    try {
+      const res = await fetch(`/api/directory?city=${encodeURIComponent(city)}&category=${encodeURIComponent(cat)}`);
+      const data = await res.json();
+      const k = langKey();
+      out.innerHTML = data.organizations.length
+        ? data.organizations.map((o) => `
+          <div class="card" style="margin-top:10px">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
+              <strong>${k === 'fr' ? o.name_fr : k === 'en' ? o.name_en : o.name_ar}</strong>
+              <span class="tag">${o.city} · ${o.region}</span>
+            </div>
+            <p style="margin:6px 0">${o.address || ''} · ${o.phone || ''}</p>
+            <small>${o.operating_hours || ''} · ${o.accessibility_info || ''}</small>
+            ${o.latitude && o.longitude ? `<div style="margin-top:8px"><a class="btn o" target="_blank" rel="noopener" href="https://www.openstreetmap.org/?mlat=${o.latitude}&mlon=${o.longitude}#map=15/${o.latitude}/${o.longitude}">${k === 'fr' ? 'Itinéraire' : k === 'en' ? 'Directions' : 'الاتجاهات'}</a></div>` : ''}
+          </div>
+        `).join('')
+        : '<p>No verified services found for this filter.</p>';
+    } catch {
+      out.innerHTML = '<p>Error loading services map.</p>';
+    }
+  };
+
   window.amanLoadDirectory = async function () {
     const city = (document.getElementById('aman-dir-city') || {}).value || '';
     const out = document.getElementById('aman-dir-list');
@@ -352,6 +379,48 @@
 
   // Register routes into existing P object if available
   if (window.P) {
+    window.P.home = () => {
+      const k = langKey();
+      const title = k === 'fr' ? 'AMAN — Protection, Prévention & Soutien' : k === 'en' ? 'AMAN — Protection, Prevention & Support' : 'أمان — الحماية، الوقاية، والدعم';
+      const sub = k === 'fr'
+        ? 'Vous n’êtes pas seule. Accédez à une orientation fiable, un soutien psychologique et des services vérifiés au Maroc.'
+        : k === 'en'
+          ? 'You are not alone. Access trusted guidance, psychological support, and verified services in Morocco.'
+          : 'لستِ وحدكِ. منصة أمان توفر لكِ التوجيه الموثوق، الدعم النفسي والاجتماعي، والوصول الآمن لخدمات الحماية في المغرب.';
+      return `
+        <section class="wrap">
+          <div class="card" style="text-align:center;margin-bottom:16px">
+            <img src="logo.png" alt="AMAN" style="width:76px;height:76px;object-fit:contain;margin:0 auto 10px;display:block">
+            <h1 style="margin:0 0 8px;color:var(--ac,#4B176F)">${title}</h1>
+            <p style="margin:0 0 14px">${sub}</p>
+            <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+              <a class="btn d" href="#women">${k === 'fr' ? 'Espace Femmes' : k === 'en' ? 'Women Space' : 'فضاء النساء'}</a>
+              <a class="btn d" href="#girls">${k === 'fr' ? 'Espace Filles' : k === 'en' ? 'Girls Space' : 'فضاء الفتيات'}</a>
+              <a class="btn o" href="#child">${k === 'fr' ? 'Espace Enfants' : k === 'en' ? 'Child Space' : 'فضاء الأطفال'}</a>
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin-bottom:16px">
+            <div class="card">
+              <img src="aman.jpg" alt="AMAN Support" style="width:100%;height:130px;object-fit:cover;border-radius:12px;margin-bottom:10px">
+              <h3 style="margin:0 0 6px">${k === 'fr' ? 'Signalement confidentiel' : k === 'en' ? 'Confidential Reporting' : 'تبليغ سري وآمن'}</h3>
+              <p style="margin:0 0 10px;font-size:.92rem">${k === 'fr' ? 'Envoyez une demande écrite ou vocale en toute confidentialité.' : k === 'en' ? 'Submit a written or voice request confidentially.' : 'أرسلي طلب مساعدة مكتوباً أو صوتياً بسرية تامة مع رمز متابعة.'}</p>
+              <a class="btn o" href="#followup">${k === 'fr' ? 'Suivi de demande' : k === 'en' ? 'Track Request' : 'متابعة طلب'}</a>
+            </div>
+            <div class="card">
+              <img src="unfm.jpg" alt="Support Services" style="width:100%;height:130px;object-fit:cover;border-radius:12px;margin-bottom:10px">
+              <h3 style="margin:0 0 6px">${k === 'fr' ? 'Services vérifiés' : k === 'en' ? 'Verified Services' : 'خدمات الدعم الموثقة'}</h3>
+              <p style="margin:0 0 10px;font-size:.92rem">${k === 'fr' ? 'Centres d’écoute et associations vérifiées (Pilote Laâyoune).' : k === 'en' ? 'Verified listening centers and NGOs (Laâyoune Pilot).' : 'مراكز الاستماع والجمعيات الموثقة (العيون والمغرب).'}</p>
+              <a class="btn o" href="#map">${k === 'fr' ? 'Voir la carte' : k === 'en' ? 'View Map' : 'خريطة الخدمات'}</a>
+            </div>
+          </div>
+
+          <div class="card" style="text-align:center">
+            <strong style="color:#b91c1c">${k === 'fr' ? 'Urgences Maroc : Police 19 · Gendarmerie 177 · SAMU 15 · UNFM 8350' : k === 'en' ? 'Morocco Emergencies: Police 19 · Gendarmerie 177 · Ambulance 15 · UNFM 8350' : 'أرقام الطوارئ في المغرب: الشرطة 19 · الدرك 177 · الإسعاف 15 · خط المساندة 8350'}</strong>
+          </div>
+        </section>
+      `;
+    };
     window.P.women = () => renderReportPage('women', 'womenTitle', 'womenSub', ['Domestic Violence', 'Physical Violence', 'Psychological Violence', 'Economic Violence', 'Digital Harassment', 'Workplace Harassment']);
     window.P.girls = () => renderReportPage('girls', 'girlsTitle', 'girlsSub', ['Bullying', 'Cyberbullying', 'Harassment', 'Family Violence', 'School Violence']);
     window.P.child = () => renderReportPage('child', 'childTitle', 'childSub', ['Physical Abuse', 'Psychological Abuse', 'Neglect', 'Bullying', 'Online Exploitation', 'School Violence']);
@@ -367,6 +436,29 @@
         </div>
       </section>
     `;
+    window.P.map = () => {
+      setTimeout(() => window.amanLoadMap(), 50);
+      const k = langKey();
+      return `
+        <section class="wrap" style="max-width:900px;margin:24px auto;padding:0 16px">
+          <div class="card" style="margin-bottom:16px">
+            <h1 style="margin-top:0">${k === 'fr' ? 'AMAN MAP — Annuaire des services vérifiés' : k === 'en' ? 'AMAN MAP — Verified Services Directory' : 'خريطة أمان — دليل الخدمات الموثقة (العيون والمغرب)'}</h1>
+            <p class="note">${k === 'fr' ? 'Confidentialité : aucune localisation de bénéficiaire ou de refuge confidentiel n’est affichée.' : k === 'en' ? 'Privacy: no beneficiary or confidential shelter locations are ever displayed.' : 'الخصوصية: لا يتم أبداً عرض مواقع المستفيدات أو الأطفال أو دور الإيواء السرية.'}</p>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+              <input id="map-city" type="text" placeholder="Laâyoune / Rabat..." value="Laâyoune" style="flex:1;min-width:160px;padding:10px">
+              <select id="map-cat" style="padding:10px">
+                <option value="">All Categories</option>
+                <option value="women_support">Women Support</option>
+                <option value="child_protection">Child Protection</option>
+                <option value="ngo">NGO</option>
+              </select>
+              <button type="button" class="btn d" onclick="amanLoadMap()">${k === 'fr' ? 'Filtrer' : k === 'en' ? 'Filter' : 'بحث'}</button>
+            </div>
+            <div id="aman-map-list" style="margin-top:12px"></div>
+          </div>
+        </section>
+      `;
+    };
     window.P.partners = () => {
       setTimeout(() => window.amanLoadDirectory(), 50);
       return `
@@ -415,6 +507,29 @@
       </section>
     `;
   }
+  // Remove duplicate SOS buttons even if injected dynamically later
+  const dedupeSos = () => {
+    const sosBtns = [...document.querySelectorAll('button, a')].filter((el) => /\bSOS\b/i.test(el.textContent || ''));
+    sosBtns.slice(1).forEach((el) => el.remove());
+  };
+  dedupeSos();
+  new MutationObserver(dedupeSos).observe(document.body, { childList: true, subtree: true });
+
+  // Privacy & anti-screenshot/print deterrents across devices
+  document.body.classList.add('aman-privacy-lock');
+  document.addEventListener('contextmenu', (e) => e.preventDefault());
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'PrintScreen' || ((e.ctrlKey || e.metaKey) && ['p', 'P', 's', 'S'].includes(e.key))) {
+      e.preventDefault();
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText('').catch(() => {});
+      }
+    }
+  });
+  document.addEventListener('visibilitychange', () => {
+    document.body.style.filter = document.hidden ? 'blur(12px)' : '';
+  });
+
   window.amanSelectAge = function (group) {
     localStorage.setItem('aman_age_group', group);
     const gate = document.getElementById('aman-onboarding-gate');
@@ -423,28 +538,7 @@
     if (typeof window.draw === 'function') window.draw();
   };
 
-  // Show age selection before content if not yet chosen
-  const savedAge = localStorage.getItem('aman_age_group');
-  if (!savedAge) {
-    const overlay = document.createElement('div');
-    overlay.id = 'aman-onboarding-gate';
-    overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(26,13,36,0.92);display:flex;align-items:center;justify-content:center;padding:16px;';
-    overlay.innerHTML = `
-      <div class="card" style="max-width:460px;width:100%;text-align:center;padding:24px;border-radius:18px;background:var(--card,#fff)">
-        <img src="logo.png" alt="AMAN" style="width:64px;height:64px;object-fit:contain;margin:0 auto 12px;display:block">
-        <h2 style="margin:0 0 8px;color:var(--ac,#4B176F)">مرحباً بكِ في أمان</h2>
-        <p style="margin:0 0 18px;font-size:.95rem">اختر الفئة العمرية المناسبة لعرض الفضاء والخدمات المخصصة لك:</p>
-        <div style="display:flex;flex-direction:column;gap:10px">
-          <button type="button" class="btn d" style="padding:12px" onclick="amanSelectAge('child')">أقل من 12 سنة — فضاء الأطفال</button>
-          <button type="button" class="btn d" style="padding:12px" onclick="amanSelectAge('girls')">12 – 17 سنة — فضاء الفتيات</button>
-          <button type="button" class="btn d" style="padding:12px" onclick="amanSelectAge('women')">18+ سنة — فضاء النساء</button>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(overlay);
-  } else if (!location.hash || location.hash === '#home') {
-    location.hash = savedAge;
-  } else if (typeof window.draw === 'function') {
+  if (typeof window.draw === 'function') {
     window.draw();
   }
 })();
