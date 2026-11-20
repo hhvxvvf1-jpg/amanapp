@@ -32,6 +32,19 @@ header .hd-act button, header .hd-act a { padding: 4px 8px !important; min-heigh
 #drw { max-width: 100vw; overflow-x: hidden; box-sizing: border-box; }
 #drw .btn, #drw button { max-width: 100%; white-space: normal; }
 footer { padding-bottom: 96px !important; }
+footer .ft-container { max-width: 1120px; margin: 0 auto; text-align: start; }
+footer .ft-g {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 24px;
+  align-items: start;
+}
+@media (max-width: 1024px) {
+  footer .ft-g { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 600px) {
+  footer .ft-g { grid-template-columns: 1fr; gap: 18px; }
+}
 .btn-sos:not(#hd-act .btn-sos) { display: none !important; }
 
 header .hd-act {
