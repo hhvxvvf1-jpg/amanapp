@@ -65,8 +65,8 @@ function submitHelpRequest({
     urgency,
     preferredLanguage,
     submissionMethod,
-    security.sanitizeText(description),
-    security.sanitizeText(safeContact),
+    security.encryptSensitive(security.sanitizeText(description)),
+    security.encryptSensitive(security.sanitizeText(safeContact)),
     security.sanitizeText(city)
   );
 
@@ -160,7 +160,12 @@ function listCasesForUser(user, { status = '', group = '' } = {}) {
   }
 
   query += ' ORDER BY created_at DESC LIMIT 100';
-  return db.prepare(query).all(...params);
+  const rows = db.prepare(query).all(...params);
+  return rows.map((r) => ({
+    ...r,
+    description: security.decryptSensitive(r.description),
+    safe_contact: security.decryptSensitive(r.safe_contact)
+  }));
 }
 
 function updateCaseStatus(user, caseId, { status, reason = '', assignedTo = null }) {
@@ -224,6 +229,24 @@ function getAudioFileForUser(user, audioId) {
   return { filePath, mimeType: audio.mime_type };
 }
 
+function redactCaseData(user, caseId) {
+  if (!user || user.role !== authService.ROLES.SAFEGUARDING_SUPERVISOR) {
+    throw new Error('Forbidden');
+  }
+  const caseRecord = db.prepare('SELECT id FROM help_requests WHERE id = ?').get(caseId);
+  if (!caseRecord) throw new Error('Case not found');
+
+  const audios = db.prepare('SELECT file_ref FROM audio_reports WHERE case_id = ?').all(caseId);
+  for (const a of audios) {
+    const p = path.join(AUDIO_DIR, a.file_ref);
+    if (fs.existsSync(p)) fs.unlinkSync(p);
+  }
+  db.prepare('DELETE FROM audio_reports WHERE case_id = ?').run(caseId);
+  db.prepare("UPDATE help_requests SET description = '[REDACTED]', safe_contact = '[REDACTED]', updated_at = datetime('now') WHERE id = ?").run(caseId);
+  security.logAudit('case_redacted', { caseId }, null, user.id);
+  return { success: true, caseId, redacted: true };
+}
+
 module.exports = {
   VALID_STATUSES,
   submitHelpRequest,
@@ -232,5 +255,6 @@ module.exports = {
   listCasesForUser,
   updateCaseStatus,
   addCaseNote,
-  getAudioFileForUser
+  getAudioFileForUser,
+  redactCaseData
 };

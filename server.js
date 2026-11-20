@@ -8,6 +8,7 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const url = require('node:url');
+const zlib = require('node:zlib');
 
 // Services & Database
 const { db, initDatabase } = require('./src/db/database');
@@ -382,6 +383,18 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+  if (pathname.startsWith('/api/cases/') && pathname.endsWith('/redact') && method === 'DELETE') {
+    const user = authService.getSessionUser(req);
+    if (!user) return sendJson(res, 401, { error: 'unauthorized' });
+    const caseId = pathname.split('/')[3];
+    try {
+      const result = casesService.redactCaseData(user, caseId);
+      return sendJson(res, 200, result);
+    } catch (err) {
+      return sendJson(res, err.message === 'Forbidden' ? 403 : 404, { error: err.message });
+    }
+  }
+
   if (pathname.startsWith('/api/audio/') && method === 'GET') {
     const user = authService.getSessionUser(req);
     if (!user) return sendJson(res, 401, { error: 'unauthorized' });
@@ -468,13 +481,26 @@ const server = http.createServer(async (req, res) => {
   if (pathname === '/api/girls/library' && method === 'GET') {
     const items = girlsService.getLibrary({
       ageGroup: parsedUrl.query.ageGroup || '',
-      category: parsedUrl.query.category || ''
+      category: parsedUrl.query.category || '',
+      q: parsedUrl.query.q || ''
     });
     return sendJson(res, 200, { success: true, items });
   }
 
+  if (pathname.startsWith('/api/girls/content/') && method === 'GET') {
+    const id = pathname.slice('/api/girls/content/'.length);
+    const result = girlsService.getContentById(id, parsedUrl.query.ageGroup || '');
+    if (result.status !== 200) {
+      return sendJson(res, result.status, { error: result.error });
+    }
+    return sendJson(res, 200, { success: true, item: result.item });
+  }
+
   if (pathname === '/api/girls/quizzes' && method === 'GET') {
-    return sendJson(res, 200, { success: true, quizzes: girlsService.getQuizzes() });
+    return sendJson(res, 200, {
+      success: true,
+      quizzes: girlsService.getQuizzes({ ageGroup: parsedUrl.query.ageGroup || '' })
+    });
   }
 
   if (pathname === '/api/girls/specialist-request' && method === 'POST') {
@@ -536,12 +562,21 @@ const server = http.createServer(async (req, res) => {
 
     if (ext === '.html') {
       res.setHeader('Cache-Control', 'no-cache');
+    } else if (['.js', '.css'].includes(ext)) {
+      res.setHeader('Cache-Control', 'public, max-age=3600');
     } else if (['.png', '.jpg', '.jpeg', '.svg', '.woff2'].includes(ext)) {
       res.setHeader('Cache-Control', 'public, max-age=86400');
     }
 
-    res.writeHead(200, { 'Content-Type': contentType });
-    fs.createReadStream(filePath).pipe(res);
+    const acceptEncoding = req.headers['accept-encoding'] || '';
+    const isCompressible = ['.html', '.js', '.css', '.json'].includes(ext);
+    if (isCompressible && acceptEncoding.includes('gzip')) {
+      res.writeHead(200, { 'Content-Type': contentType, 'Content-Encoding': 'gzip' });
+      fs.createReadStream(filePath).pipe(zlib.createGzip()).pipe(res);
+    } else {
+      res.writeHead(200, { 'Content-Type': contentType });
+      fs.createReadStream(filePath).pipe(res);
+    }
   });
 });
 

@@ -87,3 +87,16 @@ test('AMAN GIRLS endpoints (/api/girls/library, quizzes, specialist-request) wor
   const specData = await specRes.json();
   assert.ok(specData.report.referenceCode.startsWith('AMG-'));
 });
+
+test('DELETE /api/cases/:id/redact blocks unauthenticated requests (401)', async () => {
+  const res = await fetch(`${BASE_URL}/api/cases/case_test_123/redact`, { method: 'DELETE' });
+  assert.equal(res.status, 401);
+});
+
+test('AMAN GIRLS age-based content restriction blocks 16-17 content for 10-12 (403)', async () => {
+  const res = await fetch(`${BASE_URL}/api/girls/content/girls_16_17_legal?ageGroup=10-12`);
+  assert.equal(res.status, 403);
+
+  const okRes = await fetch(`${BASE_URL}/api/girls/content/girls_10_12_rights?ageGroup=10-12`);
+  assert.equal(okRes.status, 200);
+});
