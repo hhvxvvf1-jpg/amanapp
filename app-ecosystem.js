@@ -285,17 +285,47 @@
     return false;
   };
 
+  window.amanUpdateCaseStatus = async function (caseId, status) {
+    const token = localStorage.getItem('aman_staff_token');
+    if (!token) return;
+    await fetch(`/api/cases/${encodeURIComponent(caseId)}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: JSON.stringify({ status })
+    });
+    window.amanLoadCases();
+  };
+
   window.amanLoadCases = async function () {
     const token = localStorage.getItem('aman_staff_token');
     const out = document.getElementById('aman-response-out');
     if (!token || !out) return;
     try {
-      const res = await fetch('/api/cases', { headers: { Authorization: 'Bearer ' + token } });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Unauthorized');
-      out.innerHTML = data.cases.length
-        ? data.cases.map((c) => `<div class="card" style="margin-top:10px"><strong>${c.reference_code}</strong> · <span class="tag">${c.beneficiary_group}</span> · <span class="tag">${c.status}</span><p>${c.category} (${c.urgency})</p></div>`).join('')
-        : '<p>No cases assigned.</p>';
+      const [casesRes, statsRes] = await Promise.all([
+        fetch('/api/cases', { headers: { Authorization: 'Bearer ' + token } }),
+        fetch('/api/analytics', { headers: { Authorization: 'Bearer ' + token } })
+      ]);
+      const data = await casesRes.json();
+      if (!casesRes.ok) throw new Error(data.error || 'Unauthorized');
+
+      let statsHtml = '';
+      if (statsRes.ok) {
+        const s = (await statsRes.json()).stats;
+        statsHtml = `<div class="card" style="margin-bottom:12px"><strong>Analytics</strong>: Total ${s.totalRequests} · New ${s.newRequests} · Urgent ${s.urgentRequests} · Resolved ${s.resolvedCases}</div>`;
+      }
+
+      out.innerHTML = statsHtml + (data.cases.length
+        ? data.cases.map((c) => `
+          <div class="card" style="margin-top:10px">
+            <strong>${c.reference_code}</strong> · <span class="tag">${c.beneficiary_group}</span> · <span class="tag">${c.status}</span>
+            <p>${c.category} (${c.urgency})</p>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              <button type="button" class="btn o" onclick="amanUpdateCaseStatus('${c.id}','INITIAL_REVIEW')">Review</button>
+              <button type="button" class="btn o" onclick="amanUpdateCaseStatus('${c.id}','FOLLOW_UP')">Follow-Up</button>
+              <button type="button" class="btn d" onclick="amanUpdateCaseStatus('${c.id}','RESOLVED')">Resolve</button>
+            </div>
+          </div>`).join('')
+        : '<p>No cases assigned.</p>');
     } catch (err) {
       out.innerHTML = `<p>${err.message}</p>`;
     }
