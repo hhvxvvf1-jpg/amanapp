@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AMAN Response — لوحة الإدارة والتدخل المهني</title>
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="aman-pro.css?v=43">
+</head>
+<body>
+  <header style="display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:#4B176F;color:#fff">
+    <div style="display:flex;align-items:center;gap:10px">
+      <img src="logo.png" alt="AMAN" style="width:36px;height:36px;object-fit:contain;background:#fff;border-radius:8px;padding:2px">
+      <strong>AMAN Response — لوحة الإدارة المعزولة</strong>
+    </div>
+    <button type="button" class="btn o" style="color:#fff;border-color:#fff" onclick="adminLogout()">تسجيل الخروج</button>
+  </header>
+
+  <main class="wrap" style="max-width:1080px;margin:24px auto;padding:0 16px">
+    <section id="login-box" class="card" style="max-width:440px;margin:40px auto">
+      <h2 style="margin-top:0">دخول المشرفين والمختصين</h2>
+      <form onsubmit="return adminLogin(event)">
+        <label>البريد المهني</label>
+        <input type="email" name="email" required style="width:100%;padding:10px;margin-bottom:12px">
+        <label>كلمة المرور</label>
+        <input type="password" name="password" required style="width:100%;padding:10px;margin-bottom:12px">
+        <button type="submit" class="btn d" style="width:100%">دخول</button>
+        <p id="login-err" style="color:#b91c1c;margin-top:8px"></p>
+      </form>
+    </section>
+
+    <section id="dash-box" style="display:none">
+      <div id="stats-row" class="card" style="margin-bottom:16px"></div>
+      <div class="card" style="margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+          <h2 style="margin:0">الطلبات والتبليغات الواردة</h2>
+          <button type="button" class="btn o" onclick="loadDashboard()">تحديث</button>
+        </div>
+        <div id="cases-list" style="margin-top:12px"></div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    function getToken() { return localStorage.getItem('aman_admin_token'); }
+
+    async function adminLogin(e) {
+      e.preventDefault();
+      const errEl = document.getElementById('login-err');
+      errEl.textContent = '';
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: e.target.email.value, password: e.target.password.value })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'فشل تسجيل الدخول');
+        localStorage.setItem('aman_admin_token', data.token);
+        showDash();
+      } catch (err) {
+        errEl.textContent = err.message;
+      }
+      return false;
+    }
+
+    function adminLogout() {
+      localStorage.removeItem('aman_admin_token');
+      location.reload();
+    }
+
+    async function updateStatus(caseId, status) {
+      await fetch(`/api/cases/${encodeURIComponent(caseId)}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() },
+        body: JSON.stringify({ status })
+      });
+      loadDashboard();
+    }
+
+    async function loadDashboard() {
+      const token = getToken();
+      if (!token) return;
+      const [casesRes, statsRes] = await Promise.all([
+        fetch('/api/cases', { headers: { Authorization: 'Bearer ' + token } }),
+        fetch('/api/analytics', { headers: { Authorization: 'Bearer ' + token } })
+      ]);
+
+      if (statsRes.ok) {
+        const s = (await statsRes.json()).stats;
+        document.getElementById('stats-row').innerHTML = `
+          <strong>الإحصائيات المجمعة:</strong>
+          إجمالي الطلبات: <b>${s.totalRequests}</b> ·
+          جديدة: <b>${s.newRequests}</b> ·
+          مستعجلة: <b>${s.urgentRequests}</b> ·
+          معالجة: <b>${s.resolvedCases}</b> ·
+          إحالات: <b>${s.totalReferrals}</b>
+        `;
+      }
+
+      if (casesRes.ok) {
+        const cases = (await casesRes.json()).cases;
+        document.getElementById('cases-list').innerHTML = cases.length
+          ? cases.map(c => `
+            <div class="card" style="margin-top:10px">
+              <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px">
+                <strong>${c.reference_code}</strong>
+                <span><span class="tag">${c.beneficiary_group}</span> <span class="tag">${c.urgency}</span> <span class="tag">${c.status}</span></span>
+              </div>
+              <p style="margin:6px 0">${c.category} — ${c.city || 'غير محدد'}</p>
+              <p style="margin:6px 0;font-size:.92rem">${c.description || ''}</p>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+                <button type="button" class="btn o" onclick="updateStatus('${c.id}','INITIAL_REVIEW')">مراجعة أولية</button>
+                <button type="button" class="btn o" onclick="updateStatus('${c.id}','HUMAN_ASSESSMENT')">تقييم بشري</button>
+                <button type="button" class="btn o" onclick="updateStatus('${c.id}','FOLLOW_UP')">متابعة</button>
+                <button type="button" class="btn d" onclick="updateStatus('${c.id}','RESOLVED')">تم الحل</button>
+              </div>
+            </div>`).join('')
+          : '<p>لا توجد طلبات مسجلة حالياً.</p>';
+      }
+    }
+
+    function showDash() {
+      document.getElementById('login-box').style.display = 'none';
+      document.getElementById('dash-box').style.display = 'block';
+      loadDashboard();
+    }
+
+    if (getToken()) showDash();
+  </script>
+</body>
+</html>

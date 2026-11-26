@@ -285,17 +285,47 @@
     return false;
   };
 
+  window.amanUpdateCaseStatus = async function (caseId, status) {
+    const token = localStorage.getItem('aman_staff_token');
+    if (!token) return;
+    await fetch(`/api/cases/${encodeURIComponent(caseId)}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: JSON.stringify({ status })
+    });
+    window.amanLoadCases();
+  };
+
   window.amanLoadCases = async function () {
     const token = localStorage.getItem('aman_staff_token');
     const out = document.getElementById('aman-response-out');
     if (!token || !out) return;
     try {
-      const res = await fetch('/api/cases', { headers: { Authorization: 'Bearer ' + token } });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Unauthorized');
-      out.innerHTML = data.cases.length
-        ? data.cases.map((c) => `<div class="card" style="margin-top:10px"><strong>${c.reference_code}</strong> · <span class="tag">${c.beneficiary_group}</span> · <span class="tag">${c.status}</span><p>${c.category} (${c.urgency})</p></div>`).join('')
-        : '<p>No cases assigned.</p>';
+      const [casesRes, statsRes] = await Promise.all([
+        fetch('/api/cases', { headers: { Authorization: 'Bearer ' + token } }),
+        fetch('/api/analytics', { headers: { Authorization: 'Bearer ' + token } })
+      ]);
+      const data = await casesRes.json();
+      if (!casesRes.ok) throw new Error(data.error || 'Unauthorized');
+
+      let statsHtml = '';
+      if (statsRes.ok) {
+        const s = (await statsRes.json()).stats;
+        statsHtml = `<div class="card" style="margin-bottom:12px"><strong>Analytics</strong>: Total ${s.totalRequests} · New ${s.newRequests} · Urgent ${s.urgentRequests} · Resolved ${s.resolvedCases}</div>`;
+      }
+
+      out.innerHTML = statsHtml + (data.cases.length
+        ? data.cases.map((c) => `
+          <div class="card" style="margin-top:10px">
+            <strong>${c.reference_code}</strong> · <span class="tag">${c.beneficiary_group}</span> · <span class="tag">${c.status}</span>
+            <p>${c.category} (${c.urgency})</p>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              <button type="button" class="btn o" onclick="amanUpdateCaseStatus('${c.id}','INITIAL_REVIEW')">Review</button>
+              <button type="button" class="btn o" onclick="amanUpdateCaseStatus('${c.id}','FOLLOW_UP')">Follow-Up</button>
+              <button type="button" class="btn d" onclick="amanUpdateCaseStatus('${c.id}','RESOLVED')">Resolve</button>
+            </div>
+          </div>`).join('')
+        : '<p>No cases assigned.</p>');
     } catch (err) {
       out.innerHTML = `<p>${err.message}</p>`;
     }
@@ -527,8 +557,64 @@
     }
   });
   document.addEventListener('visibilitychange', () => {
-    document.body.style.filter = document.hidden ? 'blur(12px)' : '';
+    document.body.style.filter = document.hidden ? 'blur(14px)' : '';
   });
+  document.addEventListener('keydown', (e) => {
+    if (e.ctrlKey && e.shiftKey && (e.key === 'X' || e.key === 'x')) {
+      e.preventDefault();
+      document.body.style.filter = document.body.style.filter ? '' : 'blur(18px)';
+    }
+  });
+
+  window.amanOpenSosModal = function () {
+    const existing = document.getElementById('aman-sos-modal');
+    if (existing) existing.remove();
+    const k = langKey();
+    const modal = document.createElement('div');
+    modal.id = 'aman-sos-modal';
+    modal.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(26,13,36,0.85);display:flex;align-items:center;justify-content:center;padding:16px;';
+    modal.innerHTML = `
+      <div class="card" style="max-width:440px;width:100%;background:var(--card,#fff);border:2px solid #b91c1c">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <strong style="color:#b91c1c;font-size:1.1rem">${k === 'fr' ? 'Urgence SOS — Maroc' : k === 'en' ? 'SOS Emergency — Morocco' : 'طوارئ SOS — المغرب'}</strong>
+          <button type="button" class="btn o" onclick="document.getElementById('aman-sos-modal').remove()">✕</button>
+        </div>
+        <p style="font-size:.9rem;margin:0 0 12px">${k === 'fr' ? 'En cas de danger immédiat, appelez directement :' : k === 'en' ? 'In immediate danger, call directly:' : 'في حالة الخطر الفوري، اتصلي مباشرة:'}</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
+          <a class="btn d" style="background:#b91c1c;border-color:#b91c1c" href="tel:19">19 · ${k === 'fr' ? 'Police' : k === 'en' ? 'Police' : 'الشرطة'}</a>
+          <a class="btn d" style="background:#b91c1c;border-color:#b91c1c" href="tel:177">177 · ${k === 'fr' ? 'Gendarmerie' : k === 'en' ? 'Gendarmerie' : 'الدرك'}</a>
+          <a class="btn o" href="tel:15">15 · ${k === 'fr' ? 'SAMU' : k === 'en' ? 'Ambulance' : 'الإسعاف'}</a>
+          <a class="btn o" href="tel:8350">8350 · UNFM</a>
+        </div>
+        <button type="button" class="btn d" style="width:100%" onclick="amanQuickSosAlert()">${k === 'fr' ? 'Envoyer une alerte confidentielle AMAN' : k === 'en' ? 'Send Confidential AMAN Alert' : 'إرسال طلب استغاثة سري عبر أمان'}</button>
+        <div id="aman-sos-status" style="margin-top:10px;font-size:.9rem"></div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+  };
+
+  window.amanQuickSosAlert = async function () {
+    const out = document.getElementById('aman-sos-status');
+    try {
+      const res = await fetch('/api/reports', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          beneficiaryGroup: localStorage.getItem('aman_age_group') === 'child' ? 'child' : localStorage.getItem('aman_age_group') === 'girls' ? 'girls' : 'women',
+          category: 'SOS Urgent Alert',
+          urgency: 'urgent',
+          preferredLanguage: langKey(),
+          submissionMethod: 'written',
+          description: 'Urgent SOS alert triggered'
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      out.innerHTML = `<strong style="color:green">Code:</strong> <code>${data.report.referenceCode}</code>`;
+    } catch (err) {
+      out.textContent = err.message;
+    }
+  };
 
   window.amanSelectAge = function (group) {
     localStorage.setItem('aman_age_group', group);
