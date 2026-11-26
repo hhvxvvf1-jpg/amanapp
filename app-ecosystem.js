@@ -537,6 +537,22 @@
       </section>
     `;
   }
+  // Quick Exit button (global best practice in survivor protection platforms)
+  const addQuickExit = () => {
+    if (document.getElementById('aman-quick-exit')) return;
+    const btn = document.createElement('button');
+    btn.id = 'aman-quick-exit';
+    btn.type = 'button';
+    btn.textContent = langKey() === 'fr' ? 'Sortie rapide ✕' : langKey() === 'en' ? 'Quick Exit ✕' : 'خروج سريع ✕';
+    btn.style.cssText = 'position:fixed;bottom:74px;left:14px;z-index:9990;background:#1f2937;color:#fff;border:none;border-radius:999px;padding:8px 14px;font-size:.82rem;font-weight:700;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,0.25);';
+    btn.onclick = () => {
+      try { sessionStorage.clear(); } catch {}
+      window.location.replace('https://www.google.com');
+    };
+    document.body.appendChild(btn);
+  };
+  addQuickExit();
+
   // Remove duplicate SOS buttons even if injected dynamically later
   const dedupeSos = () => {
     const sosBtns = [...document.querySelectorAll('button, a')].filter((el) => /\bSOS\b/i.test(el.textContent || ''));
